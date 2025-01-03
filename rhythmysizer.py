@@ -26,7 +26,7 @@ def convert_to_audio(data: np.ndarray) -> np.ndarray:
 def generate_test():
     t = np.linspace(0, 3, 3*22000)
     sampleRate = 22000
-    frequency = 880*np.power(2, -(4*t).astype(np.int32)/12.0)
+    frequency = 440*np.power(2, 2*(4*t).astype(np.int32)/12.0)
     data = np.sin(2*np.pi*frequency*t)
 
     left_channel = data
@@ -49,7 +49,7 @@ if __name__ == '__main__':
     generate_test()
     setup('convertFiles')
 
-    file = 'violin_scale.wav'
+    file = 'Tchaik_F_144.wav'
     path = 'convertFiles/convertFiles (wav)/' + file
 
     data, sampleRate = librosa.load(path, sr=5000)
@@ -68,7 +68,9 @@ if __name__ == '__main__':
     F, T = np.meshgrid(f, t)
     freqWithTime = freqWithTime.T
 
+    energy = []
     for freq in range(freqWithTime.shape[0]):
+        energy.append(np.mean(freqWithTime[freq]))
         freqWithTime[freq] = np.square(freqWithTime[freq])
         freqWithTime[freq] = freqWithTime[freq]/np.mean(freqWithTime[freq])
 
@@ -80,19 +82,49 @@ if __name__ == '__main__':
     for time in range(freqWithTime.shape[0] - 1):
         matchingArea.append(np.mean(np.maximum(freqWithTime[time + 1], freqWithTime[time])))
     matchingArea = np.array(matchingArea)
+    matchingArea = matchingArea - np.mean(matchingArea)
 
-    matchingFreq = np.square(np.delete(np.array_split(np.abs(np.fft.fft(matchingArea)),2)[0], 0))
-    beatFrequency = np.argmax(matchingFreq)
-    print("tempo:", 60/(2*interFrameTime)*beatFrequency/matchingFreq.shape[0])
-    print()
+    matchingFreq = np.array_split(np.fft.fft(matchingArea), 2)[0]
+    beatFrequency = np.square(np.abs(matchingFreq))
+    beatFramesFrequency = np.argmax(beatFrequency)/matchingFreq.shape[0]/2
 
-    # peaks = scipy.signal.find_peaks(areas, prominence = 0.15)
-    # print(peaks[0])
-    # line = np.linspace(0, np.max(areas), 10)
+    beatFrequency = beatFramesFrequency/interFrameTime
+    print("tempo:", 60*beatFrequency)
 
-    # plt.plot(t[np.arange(areas.shape[0])], areas, 'b-')
-    # plt.vlines(t[peaks[0]], np.min(areas), np.max(areas), color='r', linestyles='dashed')
-    # plt.show()
+    # ///////////////////////////////////////////////////////////////
+
+    peaks = scipy.signal.find_peaks(matchingArea, prominence = 0.15)
+    print(peaks[0])
+
+    plt.plot(t[np.arange(matchingArea.shape[0])], matchingArea, 'b-')
+    plt.vlines(t[peaks[0]], np.min(matchingArea), np.max(matchingArea), color='r', linestyles='dashed')
+
+    energy = energy/np.mean(energy)
+    energyPeaks = scipy.signal.find_peaks(energy, prominence = 1)[0]
+    phase = t[energyPeaks[0]]
+
+    lines = np.arange(0, t[matchingArea.shape[0]], 1/beatFrequency) + phase
+    plt.vlines(lines, np.min(matchingArea), np.max(matchingArea), color='g', linestyles='dotted')
+
+    plt.show()
+
+    # //////////////////////////////////////////////////////
+
+    I = matchingArea*np.sin(2*np.pi*beatFrequency*interFrameTime*np.linspace(0, matchingArea.shape[0], matchingArea.shape[0]))
+    Q = matchingArea*np.cos(2*np.pi*beatFrequency*interFrameTime*np.linspace(0, matchingArea.shape[0], matchingArea.shape[0]))
+
+    fig, ax = plt.subplots(4)
+    ax[0].plot(np.sin(2*np.pi*beatFrequency*interFrameTime*np.linspace(0, matchingArea.shape[0], matchingArea.shape[0])))
+    ax[1].plot(I)
+    ax[2].plot(Q)
+    ax[3].plot(matchingArea)
+    plt.show()
+
+    samples = I + 1j*Q
+    importantSamples = np.arange(energyPeaks[0], matchingArea.shape[0], 1/beatFramesFrequency)
+    samples = samples[importantSamples.astype(np.int32)]
+    plt.plot(np.real(samples), np.imag(samples), '.')
+    plt.show()
 
     # alternating_sequence = np.arange(0, peaks[0].shape[0])
     # alternating_sequence = np.power(-1, alternating_sequence)
