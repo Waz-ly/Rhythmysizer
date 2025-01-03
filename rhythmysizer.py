@@ -76,36 +76,41 @@ if __name__ == '__main__':
     surf = ax.plot_surface(F, T, freqWithTime, cmap='viridis', alpha=0.8)
     plt.show()
 
-    areas = []
-    for time in range(freqWithTime.shape[0] - 3):
-        areas.append(np.mean(np.maximum(freqWithTime[time + 1], freqWithTime[time])))
-    areas = np.array(areas)
+    matchingArea = []
+    for time in range(freqWithTime.shape[0] - 1):
+        matchingArea.append(np.mean(np.maximum(freqWithTime[time + 1], freqWithTime[time])))
+    matchingArea = np.array(matchingArea)
 
-    peaks = scipy.signal.find_peaks(areas, prominence = 0.15)
-    print(peaks[0])
-    line = np.linspace(0, np.max(areas), 10)
+    matchingFreq = np.square(np.delete(np.array_split(np.abs(np.fft.fft(matchingArea)),2)[0], 0))
+    beatFrequency = np.argmax(matchingFreq)
+    print("tempo:", 60/(2*interFrameTime)*beatFrequency/matchingFreq.shape[0])
+    print()
 
-    plt.plot(t[np.arange(areas.shape[0])], areas, 'b-')
-    plt.vlines(t[peaks[0]], np.min(areas), np.max(areas), color='r', linestyles='dashed')
-    plt.show()
+    # peaks = scipy.signal.find_peaks(areas, prominence = 0.15)
+    # print(peaks[0])
+    # line = np.linspace(0, np.max(areas), 10)
 
-    alternating_sequence = np.arange(0, peaks[0].shape[0])
-    alternating_sequence = np.power(-1, alternating_sequence)
-    plt.plot(t[peaks[0]], alternating_sequence)
-    spline = scipy.interpolate.CubicSpline(t[peaks[0]], alternating_sequence)
+    # plt.plot(t[np.arange(areas.shape[0])], areas, 'b-')
+    # plt.vlines(t[peaks[0]], np.min(areas), np.max(areas), color='r', linestyles='dashed')
+    # plt.show()
 
-    beats = spline(t)
-    plt.plot(t, beats)
-    plt.show()
+    # alternating_sequence = np.arange(0, peaks[0].shape[0])
+    # alternating_sequence = np.power(-1, alternating_sequence)
+    # plt.plot(t[peaks[0]], alternating_sequence)
+    # spline = scipy.interpolate.CubicSpline(t[peaks[0]], alternating_sequence)
 
-    beats = beats*scipy.signal.windows.hann(t.shape[0])
-    beatFrequencies = np.array_split(np.abs(np.fft.fft(beats)), 2)[0]
-    f = np.linspace(0, 1/(2*interFrameTime), beatFrequencies.shape[0])
-    plt.plot(f, beatFrequencies)
-    plt.show()
+    # beats = spline(t)
+    # plt.plot(t, beats)
+    # plt.show()
 
-    # times 2 because alternating sequence halves the frequency
-    peak = 2*scipy.signal.find_peaks(beatFrequencies, distance = beatFrequencies.shape[0])[0]
-    print(peak)
-    print("beat frequency (Hz):", f[peak[0]])
-    print("beat frequency (bpm):", f[peak[0]]*60)
+    # beats = beats*scipy.signal.windows.hann(t.shape[0])
+    # beatFrequencies = np.array_split(np.abs(np.fft.fft(beats)), 2)[0]
+    # f = np.linspace(0, 1/(2*interFrameTime), beatFrequencies.shape[0])
+    # plt.plot(f, beatFrequencies)
+    # plt.show()
+
+    # # times 2 because alternating sequence halves the frequency
+    # peak = 2*scipy.signal.find_peaks(beatFrequencies, distance = beatFrequencies.shape[0])[0]
+    # print(peak)
+    # print("beat frequency (Hz):", f[peak[0]])
+    # print("beat frequency (bpm):", f[peak[0]]*60)
