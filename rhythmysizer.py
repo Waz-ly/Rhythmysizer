@@ -49,7 +49,7 @@ if __name__ == '__main__':
     generate_test()
     setup('convertFiles')
 
-    file = 'Tchaik_F_184.wav'
+    file = 'violin_scale.wav'
     path = 'convertFiles/convertFiles (wav)/' + file
 
     data, sampleRate = librosa.load(path, sr=5000)
@@ -77,14 +77,15 @@ if __name__ == '__main__':
     plt.show()
 
     areas = []
-    for time in range(freqWithTime.shape[0] - 1):
+    for time in range(freqWithTime.shape[0] - 3):
         areas.append(np.mean(np.maximum(freqWithTime[time + 1], freqWithTime[time])))
+    areas = np.array(areas)
 
     peaks = scipy.signal.find_peaks(areas, prominence = 0.15)
     print(peaks[0])
     line = np.linspace(0, np.max(areas), 10)
 
-    plt.plot(np.delete(t, -1), areas, 'b-')
+    plt.plot(t[np.arange(areas.shape[0])], areas, 'b-')
     plt.vlines(t[peaks[0]], np.min(areas), np.max(areas), color='r', linestyles='dashed')
     plt.show()
 
@@ -108,4 +109,3 @@ if __name__ == '__main__':
     print(peak)
     print("beat frequency (Hz):", f[peak[0]])
     print("beat frequency (bpm):", f[peak[0]]*60)
-    print()
