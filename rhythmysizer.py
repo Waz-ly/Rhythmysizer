@@ -120,27 +120,27 @@ if __name__ == '__main__':
     plt.vlines(t[beats_tempo_calculated], np.min(spectralOverlap), np.max(spectralOverlap), color='g', linestyles='dotted')
     plt.show()
 
-    # unsure if this works, more testing needed
+    # fine beat synchronization
     alpha = 0.2
-    interbeat_frames_true = interbeat_frames
-    phase = initial_beat + 2*interbeat_frames
+    correlation_vector = [1, 2, 1]
+    true_beat = initial_beat + 2*interbeat_frames
     beats_loop_corrected = []
     interbeat_frame_log = []
-    i = 2
-    while phase < spectralOverlap.shape[0] - 2*interbeat_frames_true:
-        pulses = np.zeros(int(3*interbeat_frames_true))
-        pulses[np.arange(interbeat_frames_true/2, pulses.shape[0], interbeat_frames_true).astype(np.int16)] = [1, 2, 1]
-        beats_loop_corrected.append(phase)
-        true_beats = np.correlate(spectralOverlap[int(beats_loop_corrected[i-2] - 2*interbeat_frames_true):
-                                                  int(beats_loop_corrected[i-2] + 2*interbeat_frames_true)],
-                                                  pulses)
-        freq_correction = np.argmax(true_beats) - 0.5*interbeat_frames_true
-        interbeat_frames_true = interbeat_frames_true + alpha*freq_correction
-        interbeat_frame_log.append(interbeat_frames_true)
-        phase = phase + interbeat_frames_true
-        i += 1
-    beats_loop_corrected = np.array(beats_loop_corrected).astype(np.int32)
+    while true_beat < spectralOverlap.shape[0] - 2*interbeat_frames:
+        interbeat_frame_log.append(interbeat_frames)
+        beats_loop_corrected.append(true_beat)
 
+        pulses = np.zeros(int(3*interbeat_frames))
+        pulses[np.arange(interbeat_frames/2, pulses.shape[0], interbeat_frames).astype(np.int16)] = correlation_vector
+        beat_sync = np.correlate(spectralOverlap[int(beats_loop_corrected[-1] - 2*interbeat_frames):
+                                                  int(beats_loop_corrected[-1] + 2*interbeat_frames)],
+                                                  pulses)
+        correction = np.argmax(beat_sync) - 0.5*interbeat_frames
+
+        interbeat_frames = interbeat_frames + alpha*correction
+        true_beat = true_beat + interbeat_frames
+
+    beats_loop_corrected = np.array(beats_loop_corrected).astype(np.int32)
     plt.plot(t[np.arange(spectralOverlap.shape[0])], spectralOverlap, 'b-')
     plt.vlines(t[beats_peak_derived], np.min(spectralOverlap), np.max(spectralOverlap), color='r', linestyles='dashed')
     plt.vlines(t[beats_loop_corrected], np.min(spectralOverlap), np.max(spectralOverlap), color='g', linestyles='dotted')
@@ -150,3 +150,5 @@ if __name__ == '__main__':
     timeVariantTempo = 60/(interbeat_frame_log*interFrameTime)
     plt.plot(timeVariantTempo)
     plt.show()
+
+    print()
