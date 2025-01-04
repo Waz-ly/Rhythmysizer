@@ -49,7 +49,7 @@ if __name__ == '__main__':
     generate_test()
     setup('convertFiles')
 
-    file = 'Tchaik_F_144.wav'
+    file = 'westside_beginning.wav'
     path = 'convertFiles/convertFiles (wav)/' + file
 
     data, sampleRate = librosa.load(path, sr=5000)
@@ -86,9 +86,15 @@ if __name__ == '__main__':
 
     matchingFreq = np.array_split(np.fft.fft(matchingArea), 2)[0]
     beatFrequency = np.square(np.abs(matchingFreq))
-    beatFramesFrequency = np.argmax(beatFrequency)/matchingFreq.shape[0]/2
+    excludeDC = int(windowLength*sampleRate/2/50)
+    beatFramesFrequency = (np.argmax(beatFrequency[excludeDC:]) + excludeDC)/matchingFreq.shape[0]/2
 
+    plt.plot(np.abs(matchingFreq))
+    plt.show()
+
+    phase = np.angle(matchingFreq[np.argmax(beatFrequency)]) + np.pi/4
     beatFrequency = beatFramesFrequency/interFrameTime
+    print("phase:", phase)
     print("tempo:", 60*beatFrequency)
 
     # ///////////////////////////////////////////////////////////////
@@ -100,7 +106,7 @@ if __name__ == '__main__':
     plt.vlines(t[peaks[0]], np.min(matchingArea), np.max(matchingArea), color='r', linestyles='dashed')
 
     energy = energy/np.mean(energy)
-    energyPeaks = scipy.signal.find_peaks(energy, prominence = 1)[0]
+    energyPeaks = scipy.signal.find_peaks(energy, prominence = 0.1)[0]
     phase = t[energyPeaks[0]]
 
     lines = np.arange(0, t[matchingArea.shape[0]], 1/beatFrequency) + phase
@@ -113,18 +119,13 @@ if __name__ == '__main__':
     I = matchingArea*np.sin(2*np.pi*beatFrequency*interFrameTime*np.linspace(0, matchingArea.shape[0], matchingArea.shape[0]))
     Q = matchingArea*np.cos(2*np.pi*beatFrequency*interFrameTime*np.linspace(0, matchingArea.shape[0], matchingArea.shape[0]))
 
-    fig, ax = plt.subplots(4)
-    ax[0].plot(np.sin(2*np.pi*beatFrequency*interFrameTime*np.linspace(0, matchingArea.shape[0], matchingArea.shape[0])))
-    ax[1].plot(I)
-    ax[2].plot(Q)
-    ax[3].plot(matchingArea)
-    plt.show()
-
     samples = I + 1j*Q
     importantSamples = np.arange(energyPeaks[0], matchingArea.shape[0], 1/beatFramesFrequency)
     samples = samples[importantSamples.astype(np.int32)]
     plt.plot(np.real(samples), np.imag(samples), '.')
     plt.show()
+
+    print()
 
     # alternating_sequence = np.arange(0, peaks[0].shape[0])
     # alternating_sequence = np.power(-1, alternating_sequence)
