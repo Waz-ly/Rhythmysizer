@@ -45,87 +45,106 @@ def generate_test():
 # ----------------------------------------------------------------------- #
 
 if __name__ == '__main__':
+    # setup
     print()
     generate_test()
     setup('convertFiles')
 
-    file = 'westside_beginning.wav'
+    file = 'Tchaik_F_100.wav'
     path = 'convertFiles/convertFiles (wav)/' + file
 
-    data, sampleRate = librosa.load(path, sr=5000)
+    data, sampleRate = librosa.load(path, sr=4000)
     audio = convert_to_audio(data)
     windowLength = 0.1
-    interFrameTime = 0.01
+    interFrameTime = 0.025
     print("sample rate:", sampleRate)
 
-    freqWithTime = np.abs(librosa.stft(audio,
+    # spectrogram
+    spectrogram = np.abs(librosa.stft(audio,
                                        n_fft=int(windowLength*sampleRate),
                                        hop_length=int(interFrameTime*sampleRate)))
-    print("stft dimensions (f, t):", freqWithTime.shape)
+    print("stft dimensions (f, t):", spectrogram.shape)
 
-    f = np.linspace(0, sampleRate/2, freqWithTime.shape[0])
-    t = np.linspace(0, interFrameTime*freqWithTime.shape[1], freqWithTime.shape[1])
+    f = np.linspace(0, sampleRate/2, spectrogram.shape[0])
+    t = np.linspace(0, interFrameTime*spectrogram.shape[1], spectrogram.shape[1])
     F, T = np.meshgrid(f, t)
-    freqWithTime = freqWithTime.T
+    spectrogram = spectrogram.T
 
-    energy = []
-    for freq in range(freqWithTime.shape[0]):
-        energy.append(np.mean(freqWithTime[freq]))
-        freqWithTime[freq] = np.square(freqWithTime[freq])
-        freqWithTime[freq] = freqWithTime[freq]/np.mean(freqWithTime[freq])
+    for freq in range(spectrogram.shape[0]):
+        spectrogram[freq] = np.square(spectrogram[freq])
+        spectrogram[freq] = spectrogram[freq]/np.mean(spectrogram[freq])
 
     ax = plt.axes(projection='3d')
-    surf = ax.plot_surface(F, T, freqWithTime, cmap='viridis', alpha=0.8)
+    surf = ax.plot_surface(F, T, spectrogram, cmap='viridis', alpha=0.8)
     plt.show()
 
-    matchingArea = []
-    for time in range(freqWithTime.shape[0] - 1):
-        matchingArea.append(np.mean(np.maximum(freqWithTime[time + 1], freqWithTime[time])))
-    matchingArea = np.array(matchingArea)
-    matchingArea = matchingArea - np.mean(matchingArea)
+    # overlap
+    spectralOverlap = []
+    for time in range(spectrogram.shape[0] - 1):
+        spectralOverlap.append(np.mean(np.maximum(spectrogram[time + 1], spectrogram[time])))
+    spectralOverlap = np.array(spectralOverlap)
+    spectralOverlap = spectralOverlap - np.mean(spectralOverlap)
 
-    matchingFreq = np.array_split(np.fft.fft(matchingArea), 2)[0]
-    beatFrequency = np.square(np.abs(matchingFreq))
+    overlapFrequencies = np.array_split(np.fft.fft(spectralOverlap), 2)[0]
+    overlapFrequencies = np.square(np.abs(overlapFrequencies))
     excludeDC = int(windowLength*sampleRate/2/50)
-    beatFramesFrequency = (np.argmax(beatFrequency[excludeDC:]) + excludeDC)/matchingFreq.shape[0]/2
 
-    plt.plot(np.abs(matchingFreq))
+    tempo_fps = (np.argmax(overlapFrequencies[excludeDC:]) + excludeDC)/overlapFrequencies.shape[0]/2
+    tempo_hz = tempo_fps/interFrameTime
+    tempo_bpm = tempo_hz*60
+
+    plt.plot(np.abs(overlapFrequencies))
     plt.show()
 
-    phase = np.angle(matchingFreq[np.argmax(beatFrequency)]) + np.pi/4
-    beatFrequency = beatFramesFrequency/interFrameTime
-    print("phase:", phase)
-    print("tempo:", 60*beatFrequency)
+    print("tempo:", tempo_bpm)
 
-    # ///////////////////////////////////////////////////////////////
+    # beat matching
+    beats_peak_derived = scipy.signal.find_peaks(spectralOverlap, prominence = 0.15)
+    plt.plot(t[np.arange(spectralOverlap.shape[0])], spectralOverlap, 'b-')
+    plt.vlines(t[beats_peak_derived[0]], np.min(spectralOverlap), np.max(spectralOverlap), color='r', linestyles='dashed')
 
-    peaks = scipy.signal.find_peaks(matchingArea, prominence = 0.15)
-    print(peaks[0])
+    pulses = np.zeros(spectralOverlap.shape[0])
+    pulses[np.arange(0, spectralOverlap.shape[0], 1/tempo_fps).astype(np.int16)] = 1
+    beat_sync = np.correlate(np.append(spectralOverlap, np.zeros(int(2/tempo_fps))), pulses)
+    initial_beat = scipy.signal.find_peaks(beat_sync, prominence = 1)[0][0] + 1/tempo_fps
 
-    plt.plot(t[np.arange(matchingArea.shape[0])], matchingArea, 'b-')
-    plt.vlines(t[peaks[0]], np.min(matchingArea), np.max(matchingArea), color='r', linestyles='dashed')
-
-    energy = energy/np.mean(energy)
-    energyPeaks = scipy.signal.find_peaks(energy, prominence = 0.1)[0]
-    phase = t[energyPeaks[0]]
-
-    lines = np.arange(0, t[matchingArea.shape[0]], 1/beatFrequency) + phase
-    plt.vlines(lines, np.min(matchingArea), np.max(matchingArea), color='g', linestyles='dotted')
+    beats_tempo_calculated = np.arange(0, t[spectralOverlap.shape[0]], 1/tempo_hz) + t[int(initial_beat)]
+    plt.vlines(beats_tempo_calculated, np.min(spectralOverlap), np.max(spectralOverlap), color='g', linestyles='dotted')
 
     plt.show()
+    
+    # I = overlapFrequencies*np.sin(2*np.pi*tempo_hz*interFrameTime*np.linspace(0, overlapFrequencies.shape[0], overlapFrequencies.shape[0]))
+    # Q = overlapFrequencies*np.cos(2*np.pi*tempo_hz*interFrameTime*np.linspace(0, overlapFrequencies.shape[0], overlapFrequencies.shape[0]))
 
-    # //////////////////////////////////////////////////////
+    # samples = I + 1j*Q
+    # importantSamples = np.arange(0, overlapFrequencies.shape[0], 1/tempo_fps) # change
+    # samples = samples[importantSamples.astype(np.int32)]
+    # plt.plot(np.real(samples), np.imag(samples), '.')
+    # plt.show()
 
-    I = matchingArea*np.sin(2*np.pi*beatFrequency*interFrameTime*np.linspace(0, matchingArea.shape[0], matchingArea.shape[0]))
-    Q = matchingArea*np.cos(2*np.pi*beatFrequency*interFrameTime*np.linspace(0, matchingArea.shape[0], matchingArea.shape[0]))
+    # print()
 
-    samples = I + 1j*Q
-    importantSamples = np.arange(energyPeaks[0], matchingArea.shape[0], 1/beatFramesFrequency)
-    samples = samples[importantSamples.astype(np.int32)]
-    plt.plot(np.real(samples), np.imag(samples), '.')
+    # unsure if this works, more testing needed
+    N = beats_tempo_calculated.shape[0]
+    pulses = np.zeros(int(3/tempo_fps))
+    pulses[np.arange(0, pulses.shape[0], 1/tempo_fps).astype(np.int16)] = 1
+    alpha = 0.132
+    beta = 0.00932
+    freq = tempo_fps
+    phase = 0
+    beats_loop_corrected = []
+    for i in range(N - 4):
+        beats_loop_corrected.append(i/tempo_fps + initial_beat + phase)
+        true_beats = np.correlate(spectralOverlap[int(beats_loop_corrected[i]-0.5/tempo_fps):int(beats_loop_corrected[i]+3.5/tempo_fps)], pulses)
+        freq_correction = np.max(true_beats) - 0.5/tempo_fps
+        freq = 1/(1/freq + alpha*freq_correction)
+        phase = phase + beta/freq
+    beats_loop_corrected = np.array(beats_loop_corrected).astype(np.int32)
+
+    plt.plot(t[np.arange(spectralOverlap.shape[0])], spectralOverlap, 'b-')
+    plt.vlines(t[beats_peak_derived[0]], np.min(spectralOverlap), np.max(spectralOverlap), color='r', linestyles='dashed')
+    plt.vlines(t[beats_loop_corrected], np.min(spectralOverlap), np.max(spectralOverlap), color='g', linestyles='dotted')
     plt.show()
-
-    print()
 
     # alternating_sequence = np.arange(0, peaks[0].shape[0])
     # alternating_sequence = np.power(-1, alternating_sequence)
