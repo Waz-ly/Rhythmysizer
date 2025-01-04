@@ -54,7 +54,7 @@ if __name__ == '__main__':
     generate_test()
     setup('convertFiles')
 
-    file = 'test.wav'
+    file = 'westside_beginning.wav'
     path = 'convertFiles/convertFiles (wav)/' + file
 
     data, sampleRate = librosa.load(path, sr=4000)
@@ -91,7 +91,8 @@ if __name__ == '__main__':
 
     overlapFrequencies = np.array_split(np.fft.fft(spectralOverlap), 2)[0]
     overlapFrequencies = np.square(np.abs(overlapFrequencies))
-    excludeDC = int(windowLength*sampleRate/2/50)
+    excludeDC = 48
+    excludeDC = int(excludeDC/60*interFrameTime*overlapFrequencies.shape[0]*2)
 
     tempo_fps = (np.argmax(overlapFrequencies[excludeDC:]) + excludeDC)/overlapFrequencies.shape[0]/2
     tempo_hz = tempo_fps/interFrameTime
@@ -100,6 +101,7 @@ if __name__ == '__main__':
     interbeat_frames = 1/tempo_fps
 
     plt.plot(np.abs(overlapFrequencies))
+    plt.vlines(excludeDC, np.min(np.abs(overlapFrequencies)), np.max(np.abs(overlapFrequencies)), color='r')
     plt.show()
     print("tempo:", tempo_bpm)
 
@@ -107,10 +109,10 @@ if __name__ == '__main__':
     beats_peak_derived = scipy.signal.find_peaks(spectralOverlap, prominence = 0.15)[0]
 
     pulses = np.zeros(spectralOverlap.shape[0])
-    pulses[np.arange(0, spectralOverlap.shape[0], interbeat_frames).astype(np.int16)] = 1
+    pulses[np.arange(0, spectralOverlap.shape[0] - 1, interbeat_frames).astype(np.int16)] = 1
     beat_sync = np.correlate(np.append(spectralOverlap, np.zeros(int(2*interbeat_frames))), pulses)
     initial_beat = scipy.signal.find_peaks(beat_sync, prominence = 1)[0][0]
-    beats_tempo_calculated = np.arange(0, spectralOverlap.shape[0], interbeat_frames) + initial_beat
+    beats_tempo_calculated = np.arange(interbeat_frames, spectralOverlap.shape[0], interbeat_frames) + initial_beat - interbeat_frames
     beats_tempo_calculated = beats_tempo_calculated.astype(np.int16)
 
     plt.plot(t[np.arange(spectralOverlap.shape[0])], spectralOverlap, 'b-')
