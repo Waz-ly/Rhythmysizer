@@ -87,7 +87,6 @@ if __name__ == '__main__':
     for time in range(spectrogram.shape[0] - 1):
         spectralOverlap.append(np.mean(np.maximum(spectrogram[time + 1], spectrogram[time])))
     spectralOverlap = np.array(spectralOverlap)
-    spectralOverlap = spectralOverlap - np.mean(spectralOverlap)
 
     overlapFrequencies = np.array_split(np.fft.fft(spectralOverlap), 2)[0]
     overlapFrequencies = np.square(np.abs(overlapFrequencies))
@@ -100,8 +99,8 @@ if __name__ == '__main__':
     interbeat_time = 1/tempo_hz
     interbeat_frames = 1/tempo_fps
 
-    plt.plot(np.abs(overlapFrequencies))
-    plt.vlines(excludeDC, np.min(np.abs(overlapFrequencies)), np.max(np.abs(overlapFrequencies)), color='r')
+    plt.plot(np.abs(overlapFrequencies[1:]))
+    plt.vlines(excludeDC, np.min(np.abs(overlapFrequencies)), np.max(np.abs(overlapFrequencies[1:])), color='r', linestyles="dashed")
     plt.show()
     print("tempo:", tempo_bpm)
 
@@ -112,7 +111,7 @@ if __name__ == '__main__':
     pulses[np.arange(0, spectralOverlap.shape[0] - 1, interbeat_frames).astype(np.int16)] = 1
     beat_sync = np.correlate(np.append(spectralOverlap, np.zeros(int(2*interbeat_frames))), pulses)
     initial_beat = scipy.signal.find_peaks(beat_sync, prominence = 1)[0][0]
-    beats_tempo_calculated = np.arange(interbeat_frames, spectralOverlap.shape[0], interbeat_frames) + initial_beat - interbeat_frames
+    beats_tempo_calculated = np.arange(initial_beat, spectralOverlap.shape[0] - 1, interbeat_frames)
     beats_tempo_calculated = beats_tempo_calculated.astype(np.int16)
 
     plt.plot(t[np.arange(spectralOverlap.shape[0])], spectralOverlap, 'b-')
